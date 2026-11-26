@@ -1,0 +1,288 @@
+extends _layout.pug
+
+block head
+  link(rel="stylesheet", href="/static/css/holo-card.css")
+
+block content
+  section.section.is-main-section
+    if formMessage
+      if formMessage.danger
+        .notification.is-danger.is-light #{formMessage.message}
+      else
+        .notification.is-success.is-light #{formMessage.message}
+
+    .level
+      .level-left
+        .level-item
+          p.title.is-4 #{uploadLabel}
+      .level-right
+        if isAdmin && distinctRefids && distinctRefids.length > 0
+          .level-item
+            .field.has-addons
+              .control
+                span.button.is-static.is-small RefID:
+              .control
+                .select.is-small
+                  select#refidFilter(onchange="window.location.href = this.value ? '?refid=' + encodeURIComponent(this.value) : '?'")
+                    option(value="" selected=!selectedRefid) All Players
+                    each rid in distinctRefids
+                      option(value=rid selected=(selectedRefid === rid)) #{rid}
+        if !isAdmin && !userRefId
+          .level-item
+            p.has-text-grey
+              | No card linked to your account.&nbsp;
+              a(href="/account") Link a card
+              |  to view your #{uploadLabel.toLowerCase()}.
+
+    if !photos || photos.length === 0
+      section.section
+        .content.has-text-grey.has-text-centered
+          p
+            span.icon.is-large
+              i.mdi.mdi-image-multiple-outline.mdi-48px
+          p Nothing's here yet.
+    else
+      .columns.is-multiline
+        each photo in photos
+          .column.is-6-tablet.is-4-desktop.is-3-widescreen
+            .card.photo-card-item(
+              data-refid=photo.refId
+              data-game=photo.gameTitle
+              data-model=photo.gameModel
+              data-type=photo.imageType
+              data-filename=photo.fileName
+              data-time=photo.uploadTime
+              data-is-card=(photo.isCard ? "true" : "false")
+              data-is-printed=(photo.isPrinted ? "true" : "false")
+              data-card-id=(photo.card ? photo.card.cardId : "")
+              data-front-url=(photo.card ? (photo.card.frontUrl || photo.url) : photo.url)
+              data-back-url=(photo.card ? (photo.card.backUrl || "") : "")
+              data-holo-url=(photo.card ? (photo.card.holoUrl || "") : "")
+              data-ir-url=(photo.card ? (photo.card.irUrl || "") : "")
+              data-has-holo=(photo.card && photo.card.hasHolo ? "true" : "false")
+              data-has-back=(photo.card && photo.card.hasBack ? "true" : "false")
+              data-orientation=(photo.orientation || "portrait")
+              data-card-meta=(photo.card ? JSON.stringify(photo.card) : "")
+            )
+              .card-image
+                figure.image.photo-thumb-container(
+                  style="cursor: pointer; position: relative; overflow: hidden; " + (photo.isCard ? (photo.orientation === 'landscape' ? "aspect-ratio: 1024 / 662;" : "aspect-ratio: 662 / 1024;") : (photo.orientation === 'landscape' ? "aspect-ratio: 4 / 3;" : "aspect-ratio: 3 / 4;"))
+                  onclick=`openViewerFromCard(this.closest('.photo-card-item'))`
+                )
+                  img(src=(photo.card ? (photo.card.previewUrl || photo.card.frontUrl || photo.url) : photo.url) alt=photo.fileName style="width: 100%; height: 100%; object-fit: contain; background: #1a1a1a;" loading="lazy")
+                  if photo.isCard
+                    if photo.isPrinted
+                      span.tag.is-success(style="position: absolute; top: 8px; right: 8px;") Printed
+                    else
+                      span.tag.is-warning(style="position: absolute; top: 8px; right: 8px;") Unprinted
+              .card-content.p-3
+                .level.is-mobile.mb-1
+                  .level-left
+                    if photo.card && photo.card.shinkiName
+                      p.is-size-6.has-text-weight-bold.text-truncate(title=photo.card.shinkiName) #{photo.card.shinkiName}
+                    else if photo.card && photo.card.description
+                      p.is-size-6.has-text-weight-bold.text-truncate(title=photo.card.description) #{photo.card.description}
+                    else
+                      p.is-size-7.has-text-weight-semibold.has-text-grey.text-truncate(title=photo.fileName) #{photo.fileName}
+                  .level-right
+                    if photo.card && photo.card.hasHolo
+                      span.tag.is-info.is-light.is-small Holo
+                .level.is-mobile.is-size-7.has-text-grey
+                  .level-left
+                    span #{photo.refId}
+                  .level-right
+                    span #{new Date(photo.timestamp).toLocaleDateString()}
+              footer.card-footer
+                a.card-footer-item.btn-preview(href="#" onclick=`openViewerFromCard(this.closest('.photo-card-item')); return false;`)
+                  span.icon.is-small
+                    i.mdi.mdi-eye
+                  span View
+                if photo.isCard
+                  if photo.isPrinted
+                    a.card-footer-item.has-text-danger(href="#" onclick=`deleteCardItem(this.closest('.photo-card-item')); return false;`)
+                      span.icon.is-small
+                        i.mdi.mdi-trash-can
+                      span Delete
+                  else
+                    span.card-footer-item.is-size-7.has-text-grey(title="Card is pending print. It can only be canceled or printed in Asphyxia WebUI.")
+                      span.icon.is-small.has-text-warning
+                        i.mdi.mdi-printer-alert
+                      span Unprinted
+                else
+                  a.card-footer-item(href=photo.url download=photo.fileName)
+                    span.icon.is-small
+                      i.mdi.mdi-download
+                    span Download
+                  a.card-footer-item.has-text-danger(href="#" onclick=`deleteCardItem(this.closest('.photo-card-item')); return false;`)
+                    span.icon.is-small
+                      i.mdi.mdi-trash-can
+                    span Delete
+
+block modal
+  #lightboxModal.modal
+    .modal-background(onclick="closeViewer()")
+    .modal-content.lightbox-content(style="max-width: 900px; width: 95%;")
+      #cardStageSection.holo-stage-container
+        .holo-stage-viewport
+          #holoCardWrapper.holo-card-wrapper.is-portrait
+            #holoCardRotator.holo-card-rotator
+              #holoFaceFront.holo-card-face.face-front
+                img#holoImgFront.holo-card-img(src="" alt="Front")
+                #holoFoilContainer.holo-foil-container
+                  #holoFoilBase.holo-foil-base
+                  #holoFoilRainbow.holo-foil-rainbow
+                  #holoFoilPattern.holo-foil-pattern
+                .holo-glare
+              #holoFaceBack.holo-card-face.face-back(style="display: none;")
+                img#holoImgBack.holo-card-img(src="" alt="Back")
+                .holo-glare
+
+        .holo-controls-bar.mt-3.has-text-centered
+          .buttons.is-centered.are-small
+            button#btnHoloFlip.button.is-dark
+              span.icon
+                i.mdi.mdi-rotate-3d-variant
+              span Flip
+            button#btnHoloToggle.button.is-dark.is-active-toggle
+              span.icon
+                i.mdi.mdi-creation
+              span Holo
+            .control
+              .select.is-small
+                select#holoPatternSelect
+                  option(value="basic") Glitter
+                  option(value="starlight") Starlight
+                  option(value="prismatic") Prismatic
+                  option(value="dots") Dot Matrix
+            button#btnHoloAutoTilt.button.is-dark
+              span.icon
+                i.mdi.mdi-play-circle-outline
+              span Auto
+
+        .holo-info-panel.box.mt-3.p-4(style="background: rgba(30, 30, 30, 0.95);")
+          h3#holoCardTitle.title.is-5.has-text-white.mb-2
+          .level.is-mobile
+            .level-left
+              #holoCardTags.tags.mb-0
+            .level-right
+              .buttons.are-small.mb-0
+                a#dlCardFront.button.is-primary.is-small(href="" download="")
+                  span.icon
+                    i.mdi.mdi-download
+                  span Front
+                a#dlCardBack.button.is-info.is-small(href="" download="" style="display: none;")
+                  span.icon
+                    i.mdi.mdi-download
+                  span Back
+                a#dlCardHolo.button.is-warning.is-small(href="" download="" style="display: none;")
+                  span.icon
+                    i.mdi.mdi-download
+                  span Holo
+                a#dlCardIr.button.is-dark.is-small(href="" download="" style="display: none;")
+                  span.icon
+                    i.mdi.mdi-download
+                  span QR
+          p#holoCardDesc.subtitle.is-7.has-text-grey-light.mb-0
+
+    button#lightboxClose.modal-close.is-large(aria-label="close" onclick="closeViewer()")
+
+block scripts
+  script(type="text/javascript" src="/static/js/holo-stage.js")
+  script.
+    var holoStage = null;
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.HoloCardStage) {
+        holoStage = new window.HoloCardStage();
+      }
+    });
+
+    function openViewerFromCard(cardEl) {
+      if (!cardEl) return;
+      var isCard = cardEl.getAttribute('data-is-card') === 'true';
+      var cardMeta = {};
+      try {
+        var raw = cardEl.getAttribute('data-card-meta');
+        if (raw) cardMeta = JSON.parse(raw);
+      } catch (e) {}
+
+      var data = {
+        url: cardEl.getAttribute('data-front-url') || '',
+        frontUrl: cardEl.getAttribute('data-front-url') || '',
+        backUrl: cardEl.getAttribute('data-back-url') || '',
+        holoUrl: cardEl.getAttribute('data-holo-url') || '',
+        irUrl: cardEl.getAttribute('data-ir-url') || '',
+        hasHolo: cardEl.getAttribute('data-has-holo') === 'true',
+        hasBack: cardEl.getAttribute('data-has-back') === 'true',
+        isCard: isCard,
+        isPrinted: cardEl.getAttribute('data-is-printed') === 'true',
+        cardId: cardEl.getAttribute('data-card-id') || '',
+        orientation: cardEl.getAttribute('data-orientation') || 'portrait',
+        title: cardEl.getAttribute('data-game') || '',
+        model: cardEl.getAttribute('data-model') || '',
+        type: cardEl.getAttribute('data-type') || '',
+        refid: cardEl.getAttribute('data-refid') || '',
+        time: cardEl.getAttribute('data-time') || '',
+        filename: cardEl.getAttribute('data-filename') || '',
+        cardMeta: cardMeta,
+      };
+
+      if (holoStage) {
+        holoStage.setCard(data);
+      }
+      var modal = document.getElementById('lightboxModal');
+      if (modal) modal.classList.add('is-active');
+    }
+
+    function closeViewer() {
+      var modal = document.getElementById('lightboxModal');
+      if (modal) modal.classList.remove('is-active');
+      if (holoStage) {
+        holoStage.stopAutoTilt();
+        holoStage.resetTilt();
+        holoStage.resetFlip();
+      }
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeViewer();
+    });
+
+    function deleteCardItem(cardEl) {
+      if (!cardEl) return;
+      var isCard = cardEl.getAttribute('data-is-card') === 'true';
+      var isPrinted = cardEl.getAttribute('data-is-printed') === 'true';
+      if (isCard && !isPrinted) {
+        alert('Cannot delete unprinted card. Please complete print or cancel in profile.');
+        return;
+      }
+      var refid = cardEl.getAttribute('data-refid');
+      var filename = cardEl.getAttribute('data-filename');
+      var cardMeta = {};
+      try {
+        var raw = cardEl.getAttribute('data-card-meta');
+        if (raw) cardMeta = JSON.parse(raw);
+      } catch (e) {}
+
+      if (!confirm('Are you sure you want to delete ' + filename + '?')) {
+        return;
+      }
+
+      var deleteUrl = '/api/photos/' + encodeURIComponent(refid) + '/' + encodeURIComponent(filename);
+      if (cardMeta && cardMeta.subDir) {
+        deleteUrl = '/api/photos/subdir/' + encodeURIComponent(refid) + '/' + encodeURIComponent(cardMeta.subDir);
+      }
+
+      fetch(deleteUrl, { method: 'DELETE' })
+      .then(function(res) { return res.json(); })
+      .then(function(result) {
+        if (result.success) {
+          var col = cardEl.closest('.column');
+          if (col) col.remove();
+        } else {
+          alert('Failed to delete: ' + (result.message || 'Unknown error'));
+        }
+      })
+      .catch(function(err) {
+        alert('Request error: ' + err);
+      });
+    }
