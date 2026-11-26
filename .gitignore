@@ -17,3 +17,5 @@ build-env/*
 .env
 .agents
 tsconfig.tsbuildinfo
+config.ini
+savedata/
