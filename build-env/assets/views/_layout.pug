@@ -6,7 +6,7 @@ mixin li_menu_item(icon, label, link)
         i.mdi(class='mdi-'+icon)
       span.menu-item-label #{label}
 
-mixin li_plugin(icon, label, link, pages)
+mixin li_plugin(icon, label, link, pages, hasUploads, uploadLabel)
   li(class=(plugin == link) ? 'is-active' : '')
     a.has-icon.has-dropdown-icon(class=(plugin == link) ? 'is-active' : '' href='/plugin/' + link)
       span.icon
@@ -21,8 +21,15 @@ mixin li_plugin(icon, label, link, pages)
       li
         a(href=`/plugin/${link}` class=(((plugin == link) && (subidentifier == 'overview')) ? 'is-active' : ''))
           span Overview
-        a(href=`/plugin/${link}/profiles` class=(((plugin == link) && (subidentifier == 'profiles')) ? 'is-active' : ''))
-          span Profiles
+        if admin
+          a(href=`/plugin/${link}/profiles` class=(((plugin == link) && (subidentifier == 'profiles')) ? 'is-active' : ''))
+            span Profiles
+        else if user
+          a(href=`/plugin/${link}/profile` class=(((plugin == link) && (subidentifier == 'profiles')) ? 'is-active' : ''))
+            span Profile
+        if hasUploads
+          a(href=`/plugin/${link}/uploads` class=(((plugin == link) && (subidentifier == 'uploads')) ? 'is-active' : ''))
+            span #{uploadLabel || 'Uploads'}
         each page in pages
           a(href=`/plugin/${link}/${page.link}` class=(((plugin == link) && (subidentifier == page.link)) ? 'is-active' : ''))
             span #{page.name}
@@ -73,24 +80,37 @@ html.has-aside-left.has-aside-mobile-transition.has-navbar-fixed-top.has-aside-e
               i.mdi.mdi-dots-vertical
         .navbar-menu#navbar-menu
           .navbar-end
-            .navbar-item.has-dropdown.has-dropdown-with-icons.has-divider.is-hoverable
-              a.navbar-link.is-arrowless
-                span.icon
-                  i.mdi.mdi-menu
-                span Process
-                span.icon
-                  i.mdi.mdi-chevron-down
-              .navbar-dropdown.is-right
-                if local
-                  a.navbar-item#open-plugins
-                    span.icon
-                      i.mdi.mdi-folder
-                    span Open Plugins Folder
-                  hr.navbar-divider
-                a.navbar-item.has-text-danger#shutdown
+            if onlineMode
+              .navbar-item.has-dropdown.has-dropdown-with-icons.has-divider.is-hoverable
+                a.navbar-link.is-arrowless
                   span.icon
-                    i.mdi.mdi-power
-                  span Shutdown CORE
+                    i.mdi.mdi-account-circle
+                  if user
+                    span #{user}
+                  else
+                    span Guest
+                  span.icon
+                    i.mdi.mdi-chevron-down
+                .navbar-dropdown.is-right
+                  if user
+                    a.navbar-item(href="/account")
+                      span.icon
+                        i.mdi.mdi-account-cog
+                      span Account Settings
+                    hr.navbar-divider
+                    a.navbar-item(href="/logout")
+                      span.icon
+                        i.mdi.mdi-logout
+                      span Logout
+                  else
+                    a.navbar-item(href="/login")
+                      span.icon
+                        i.mdi.mdi-login
+                      span Login
+                    a.navbar-item(href="/signup")
+                      span.icon
+                        i.mdi.mdi-account-plus
+                      span Sign Up
       aside.aside.is-placed-left.is-expanded(data-simplebar)
         .aside-tools
           .aside-tools-label
@@ -98,10 +118,17 @@ html.has-aside-left.has-aside-mobile-transition.has-navbar-fixed-top.has-aside-e
         .menu.is-menu-main
           p.menu-label Core
           ul.menu-list
-            +li_menu_item("desktop-mac", "Dashboard", "/")
-            +li_menu_item("account-circle", "Profiles", "/profiles")
-            +li_menu_item("database", "Data Management", "/data")
+            if admin
+              +li_menu_item("desktop-mac", "Dashboard", "/")
+              +li_menu_item("account-circle", "Profiles", "/profiles")
+              +li_menu_item("database", "Data Management", "/data")
+              if onlineMode
+                +li_menu_item("account-group", "Users", "/users")
             +li_menu_item("help-circle", "About", "/about")
+            if onlineMode && user
+              +li_menu_item("account-cog", "Account", "/account")
+              +li_menu_item("credit-card-outline", "Cards", "/cards")
+              +li_menu_item("gamepad-variant", "Cabinets", "/cabinets")
           p.menu-label Plugins
           ul.menu-list
             each plugin in plugins
@@ -112,7 +139,7 @@ html.has-aside-left.has-aside-mobile-transition.has-navbar-fixed-top.has-aside-e
                 var isAlpha = /[a-zA-Z]/.test(char);
                 var isNumeric = /[0-9]/.test(char);
                 var icon = isAlpha ? `alpha-${char}-circle` : (isNumeric ? `numeric-${char}-circle` : 'record-circle');
-              +li_plugin(icon, label, link, plugin.pages)
+              +li_plugin(icon, label, link, plugin.pages, plugin.hasUploads, plugin.uploadLabel)
       .content#main-content(data-simplebar)
         section.hero.is-hero-bar
           .hero-body

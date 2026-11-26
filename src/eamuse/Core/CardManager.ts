@@ -1,6 +1,7 @@
 import { EamuseRouteContainer } from '../EamuseRouteContainer';
 import { get } from 'lodash';
 import { ROOT_CONTAINER } from '../index';
+import { CONFIG } from '../../utils/ArgConfig';
 import {
   FindCard,
   FindProfile,
@@ -10,9 +11,20 @@ import {
   CreateCard,
   UpdateProfile,
   APIFindOne,
+  GetCabinetByPCBID,
+  FindUserByUsername,
+  UpdateUserAccount,
 } from '../../utils/EamuseIO';
 
 export const cardmng = new EamuseRouteContainer();
+
+function pcode(refid: string): string {
+  try {
+    const v = parseInt((refid || '').slice(0, 8), 16);
+    if (!isNaN(v)) return String(v % 100000000).padStart(8, '0');
+  } catch {}
+  return '00000000';
+}
 
 async function CheckProfile(gameCode: string, refid: string) {
   const plugin = ROOT_CONTAINER.getPluginByCode(gameCode);
@@ -55,8 +67,11 @@ cardmng.add('cardmng.inquire', async (info, data, send) => {
       dataid: card.__refid,
       ecflag: 1,
       expired: 0,
-      lastupdate: Math.floor(card.updatedAt.getTime() / 1000),
+      lastupdate: card.updatedAt
+        ? Math.floor(new Date(card.updatedAt).getTime() / 1000)
+        : Math.floor(Date.now() / 1000),
       newflag: 0,
+      pcode: pcode(card.__refid),
       refid: card.__refid,
     },
   });
@@ -74,7 +89,9 @@ cardmng.add('cardmng.getrefid', async (info, data, send) => {
     const updated = await UpdateProfile(card.__refid, { pin }, true);
     if (updated) {
       await BindProfile(card.__refid, info.gameCode);
-      return send.object({ '@attr': { dataid: card.__refid, refid: card.__refid } });
+      return send.object({
+        '@attr': { dataid: card.__refid, refid: card.__refid, pcode: pcode(card.__refid) },
+      });
     } else {
       return send.deny();
     }
@@ -94,7 +111,17 @@ cardmng.add('cardmng.getrefid', async (info, data, send) => {
     return send.deny();
   }
 
-  send.object({ '@attr': { dataid: refid, refid } });
+  if (CONFIG.online_mode && (info as any).pcbid) {
+    const cabinet = await GetCabinetByPCBID((info as any).pcbid);
+    if (cabinet && cabinet.username) {
+      const user = await FindUserByUsername(cabinet.username);
+      if (user && (!user.cardNumber || user.cardNumber === '')) {
+        await UpdateUserAccount(user.username, { cardNumber: cid });
+      }
+    }
+  }
+
+  send.object({ '@attr': { dataid: refid, refid, pcode: pcode(refid) } });
   return;
 });
 

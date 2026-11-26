@@ -1,10 +1,21 @@
-import { existsSync, mkdirSync, readFileSync, writeFile, readFile, readdir, unlink, WriteFileOptions } from 'fs';
+import { randomBytes } from 'crypto';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFile,
+  readFile,
+  readdir,
+  unlink,
+  WriteFileOptions,
+} from 'fs';
 
 import { Logger } from './Logger';
 import path from 'path';
-import nedb from '@seald-io/nedb';
+import { SqliteStore } from './SqliteStore';
 import { nfc2card } from './CardCipher';
 import hashids from 'hashids/cjs';
+import bcrypt from 'bcryptjs';
 import { NAMES } from './Consts';
 import { CONFIG, ARGS } from './ArgConfig';
 import { isArray, get, isPlainObject, sortBy } from 'lodash';
@@ -17,59 +28,63 @@ const pkg: boolean = (process as any).pkg;
 const EXEC_PATH = path.resolve(pkg ? path.dirname(process.argv0) : process.cwd());
 
 export const PLUGIN_PATH = path.join(EXEC_PATH, 'plugins');
-export const ASSETS_PATH = path.join(pkg ? __dirname : `../build-env`, 'assets');
+export const ASSETS_PATH = existsSync(path.join(EXEC_PATH, 'build-env', 'assets'))
+  ? path.join(EXEC_PATH, 'build-env', 'assets')
+  : path.join(pkg ? __dirname : `../build-env`, 'assets');
 
-const SAVE_PATH = path.resolve(EXEC_PATH, ARGS.savedata);
+export const SAVE_PATH = path.resolve(EXEC_PATH, ARGS.savedata);
 const COREDB_FILE = path.join(SAVE_PATH, 'core.db');
 
-const LoadDatabase = async (file: string) => {
-  const DB = new nedb({
-    filename: file,
-    timestampData: true,
-    corruptAlertThreshold: ARGS.fixdb ? 0.2 : 0,
-  });
-
-  const filename = path.basename(file);
+const isLegacyNedbFile = (file: string): boolean => {
   try {
-    await DB.loadDatabaseAsync();
-    if (filename != 'core.db') Logger.info(`Database loaded: ${filename}`, { plugin: 'db' });
-  } catch (err) {
-    if (err) {
-      if (err.message && err.message.startsWith('More than')) {
-        if (ARGS.fixdb) {
-          Logger.error(
-            `Savedata "${filename}" is more than 20% corrupted. Which means the savedata might be beyond repair. Please delete the savefile in order to keep using CORE.`
-          );
-          process.exit(1);
-        } else {
-          Logger.error(
-            `Savedata "${filename}" corruption detected. Run with "--force-load-db" argument to force load data, and corrupted portion will be discarded. It is recommended to backup savedata before force loading.`
-          );
-          process.exit(1);
-        }
-      } else {
-        Logger.error(`Can not load database "${filename}":`);
-        Logger.error(err);
-      }
+    const fd = require('fs').openSync(file, 'r');
+    const buf = Buffer.alloc(16);
+    const n = require('fs').readSync(fd, buf, 0, 16, 0);
+    require('fs').closeSync(fd);
+    if (n <= 0) return false;
+    if (buf.toString('ascii', 0, 15) === 'SQLite format 3') return false;
+    for (let i = 0; i < n; i++) {
+      const c = buf[i];
+      if (c === 0x09 || c === 0x0a || c === 0x0d || c === 0x20) continue;
+      return c === 0x7b;
     }
-    return null;
+    return false;
+  } catch {
+    return false;
   }
+};
 
-  const value = await DB.countAsync({ __s: 'profile' });
-  if (value < 0) {
-    Logger.error('Profile indexes is corrupted. Can not load database.');
+const LoadDatabase = async (file: string) => {
+  const filename = path.basename(file);
+
+  if (existsSync(file) && isLegacyNedbFile(file)) {
+    Logger.error(
+      `Savedata "${filename}" is in legacy NeDB format. Run "npm run migrate-nedb" to convert your savedata before starting the server.`
+    );
     process.exit(1);
   }
 
+  let DB: SqliteStore;
   try {
-    await DB.ensureIndexAsync({ fieldName: '__s' });
-    await DB.ensureIndexAsync({ fieldName: '__refid' });
-  } catch (err) {
-    Logger.error(err);
+    DB = new SqliteStore({ filename: file, timestampData: true });
+    await DB.loadDatabaseAsync();
+    if (filename !== 'core.db') Logger.info(`Database loaded: ${filename}`, { plugin: 'db' });
+  } catch (err: any) {
+    Logger.error(
+      `Can not load database "${filename}": ${err?.stack || err?.message || String(err)}`
+    );
+    return null;
   }
 
+  await DB.ensureIndexAsync({ fieldName: '__s' });
+  await DB.ensureIndexAsync({ fieldName: '__refid' });
+
   try {
-    await DB.removeAsync({ __s: 'plugins_profile', __refid: { $exists: false } }, { multi: true });
+    const docs = await DB.findAsync({ __s: 'plugins_profile' }).execAsync();
+    const toRemove = docs.filter((d: any) => d.__refid === undefined);
+    for (const d of toRemove) {
+      await DB.removeAsync({ _id: d._id }, {});
+    }
   } catch (err) {
     Logger.error(err);
   }
@@ -77,7 +92,7 @@ const LoadDatabase = async (file: string) => {
   return DB;
 };
 
-let CoreDB: nedb = null;
+let CoreDB: SqliteStore = null;
 export const LoadCoreDB = async () => {
   CoreDB = await LoadDatabase(COREDB_FILE);
 
@@ -86,9 +101,9 @@ export const LoadCoreDB = async () => {
   }
 };
 
-const DBInstances: { [key: string]: nedb } = {};
+const DBInstances: { [key: string]: SqliteStore } = {};
 
-const GET_DB = async (affiliation: string) => {
+export const GET_DB = async (affiliation: string) => {
   if (!DBInstances[affiliation]) {
     DBInstances[affiliation] = await LoadDatabase(path.join(SAVE_PATH, `${affiliation}.db`));
     if (!DBInstances[affiliation]) {
@@ -453,6 +468,17 @@ export async function PurgeProfile(refid: string) {
     }
   }
 
+  if (refid && !refid.includes('..') && !refid.includes('/') && !refid.includes('\\')) {
+    const photosUserDir = path.join(SAVE_PATH, 'photos', refid);
+    if (existsSync(photosUserDir)) {
+      try {
+        await fsp.rm(photosUserDir, { recursive: true, force: true });
+      } catch (err) {
+        Logger.error(err);
+      }
+    }
+  }
+
   return true;
 }
 
@@ -789,4 +815,243 @@ export async function APICount(plugin: PluginDetect, arg1: string | any, arg2?: 
   if (!DB) throw new Error(`database failed to load`);
 
   return await DB.countAsync(query);
+}
+
+// =========================================
+//             User Accounts
+// =========================================
+
+export async function SeedDefaultAdmin() {
+  try {
+    const existing = await CoreDB.findOneAsync<any>({ __s: 'user_account', admin: true });
+    if (existing) return;
+
+    const hash = await bcrypt.hash('admin', 10);
+    await CoreDB.insertAsync({
+      __s: 'user_account',
+      username: 'admin',
+      password: hash,
+      cardNumber: '',
+      admin: true,
+      createdAt: Date.now(),
+      lastLogin: Date.now(),
+    });
+    Logger.info('Default admin account created (username: admin, password: admin)');
+  } catch (err) {
+    Logger.error(err);
+  }
+}
+
+export async function CreateUserAccount(
+  username: string,
+  password: string,
+  cardNumber: string,
+  admin: boolean = false,
+  countryCode: string | null = null
+) {
+  try {
+    const existing = await CoreDB.findOneAsync<any>({ __s: 'user_account', username });
+    if (existing) return null;
+
+    const hash = await bcrypt.hash(password, 10);
+    return await CoreDB.insertAsync({
+      __s: 'user_account',
+      username,
+      password: hash,
+      cardNumber,
+      admin,
+      countryCode,
+      createdAt: Date.now(),
+      lastLogin: Date.now(),
+    });
+  } catch (err) {
+    Logger.error(err);
+    return null;
+  }
+}
+
+export async function AuthenticateUser(username: string, password: string) {
+  try {
+    const user = await CoreDB.findOneAsync<any>({ __s: 'user_account', username });
+    if (!user) return null;
+
+    const match = await bcrypt.compare(password, user.password);
+    return match ? user : null;
+  } catch (err) {
+    Logger.error(err);
+    return null;
+  }
+}
+
+export async function UpdateUserAccount(
+  username: string,
+  update: {
+    username?: string;
+    password?: string;
+    countryCode?: string | null;
+    cardNumber?: string;
+    lastLogin?: number;
+  }
+) {
+  try {
+    const setFields: any = {};
+    if (update.username) setFields.username = update.username;
+    if (update.password) setFields.password = await bcrypt.hash(update.password, 10);
+    if (update.countryCode !== undefined) setFields.countryCode = update.countryCode;
+    if (update.cardNumber !== undefined) setFields.cardNumber = update.cardNumber;
+    if (update.lastLogin !== undefined) setFields.lastLogin = update.lastLogin;
+
+    await CoreDB.updateAsync({ __s: 'user_account', username }, { $set: setFields });
+
+    if (update.username && update.username !== username) {
+      await CoreDB.updateAsync(
+        { __s: 'cabinet', username },
+        { $set: { username: update.username } },
+        { multi: true }
+      );
+    }
+
+    return true;
+  } catch (err) {
+    Logger.error(err);
+    return false;
+  }
+}
+
+export async function GetAllUsers(): Promise<any[]> {
+  try {
+    return await CoreDB.findAsync<any>({ __s: 'user_account' }).sort({ createdAt: 1 }).execAsync();
+  } catch (err) {
+    Logger.error(err);
+    return [];
+  }
+}
+
+export async function SetUserAdmin(username: string, admin: boolean) {
+  try {
+    await CoreDB.updateAsync({ __s: 'user_account', username }, { $set: { admin } });
+    return true;
+  } catch (err) {
+    Logger.error(err);
+    return false;
+  }
+}
+
+export async function FindUserByUsername(username: string) {
+  try {
+    return await CoreDB.findOneAsync<any>({ __s: 'user_account', username });
+  } catch (err) {
+    Logger.error(err);
+    return null;
+  }
+}
+
+export async function FindUserByCardNumber(cardNumber: string) {
+  try {
+    return await CoreDB.findOneAsync<any>({ __s: 'user_account', cardNumber });
+  } catch (err) {
+    Logger.error(err);
+    return null;
+  }
+}
+
+export async function DeleteUserAccount(username: string) {
+  try {
+    await CoreDB.removeAsync({ __s: 'user_account', username }, {});
+    await CoreDB.removeAsync({ __s: 'cabinet', username }, { multi: true });
+    return true;
+  } catch (err) {
+    Logger.error(err);
+    return false;
+  }
+}
+
+// =========================================
+//                Cabinets
+// =========================================
+
+export async function CreateCabinet(username: string, name: string): Promise<string | null> {
+  try {
+    const pcbid = '01C' + randomBytes(8).toString('hex').toUpperCase() + '0';
+    await CoreDB.insertAsync({
+      __s: 'cabinet',
+      pcbid,
+      username,
+      name,
+      lastSeen: 0,
+      globalPort: 5700,
+      createdAt: Date.now(),
+    });
+    return pcbid;
+  } catch (err) {
+    Logger.error(err);
+    return null;
+  }
+}
+
+export async function GetCabinetsByUser(username: string): Promise<any[]> {
+  try {
+    return await CoreDB.findAsync<any>({ __s: 'cabinet', username })
+      .sort({ createdAt: 1 })
+      .execAsync();
+  } catch (err) {
+    Logger.error(err);
+    return [];
+  }
+}
+
+export async function GetAllCabinets(): Promise<any[]> {
+  try {
+    return await CoreDB.findAsync<any>({ __s: 'cabinet' }).sort({ createdAt: 1 }).execAsync();
+  } catch (err) {
+    Logger.error(err);
+    return [];
+  }
+}
+
+export async function GetCabinetByPCBID(pcbid: string): Promise<any | null> {
+  try {
+    const exact = await CoreDB.findOneAsync<any>({ __s: 'cabinet', pcbid });
+    if (exact) return exact;
+    const normalized = String(pcbid || '')
+      .trim()
+      .toUpperCase();
+    if (!normalized || normalized === pcbid) return null;
+    return await CoreDB.findOneAsync<any>({ __s: 'cabinet', pcbid: normalized });
+  } catch (err) {
+    Logger.error(err);
+    return null;
+  }
+}
+
+export async function DeleteCabinet(pcbid: string, username?: string): Promise<boolean> {
+  try {
+    const query: any = { __s: 'cabinet', pcbid };
+    if (username) query.username = username;
+    await CoreDB.removeAsync(query, {});
+    return true;
+  } catch (err) {
+    Logger.error(err);
+    return false;
+  }
+}
+
+export async function UpdateCabinetLastSeen(pcbid: string): Promise<boolean> {
+  try {
+    await CoreDB.updateAsync({ __s: 'cabinet', pcbid }, { $set: { lastSeen: Date.now() } });
+    return true;
+  } catch (err) {
+    Logger.error(err);
+    return false;
+  }
+}
+
+export async function UpdateCabinet(pcbid: string, update: any): Promise<boolean> {
+  try {
+    await CoreDB.updateAsync({ __s: 'cabinet', pcbid }, { $set: update });
+    return true;
+  } catch (err) {
+    Logger.error(err);
+    return false;
+  }
 }

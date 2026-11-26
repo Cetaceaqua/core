@@ -15,8 +15,8 @@ import { Logger } from '../utils/Logger';
 import { EamuseSend } from '../eamuse/EamuseSend';
 import { dataToXML } from '../utils/KBinJSON';
 import { EamuseRootRouter } from '../eamuse/EamuseRootRouter';
-
-// const ACCEPT_AGENTS = ['EAMUSE.XRPC/1.0', 'EAMUSE.Httpac/1.0'];
+import { GetCabinetByPCBID, UpdateCabinetLastSeen } from '../utils/EamuseIO';
+import { CONFIG } from '../utils/ArgConfig';
 
 export interface EABody {
   data: object;
@@ -28,6 +28,7 @@ export interface EABody {
   kencoded: boolean;
   encoding: KBinEncoding;
   model: string;
+  pcbid?: string;
 }
 
 export interface EamuseInfo {
@@ -35,6 +36,11 @@ export interface EamuseInfo {
   module: string;
   method: string;
   model: string;
+  ip?: string;
+  pcbid?: string;
+  host?: string;
+  protocol?: string;
+  proxy?: boolean;
 }
 
 function forwardedHeader(req: any, name: string) {
@@ -63,8 +69,31 @@ export const EamuseMiddleware: RequestHandler = async (req, res, next) => {
   res.set('X-Powered-By', 'Asphyxia');
 
   const agent = req.headers['user-agent'] || '';
+  const url = req.originalUrl || req.url || '';
 
-  if (agent.indexOf('Mozilla') >= 0) {
+  if (
+    req.method === 'GET' ||
+    req.method === 'HEAD' ||
+    agent.indexOf('Mozilla') >= 0 ||
+    url.startsWith('/api/') ||
+    url.startsWith('/upload') ||
+    url.startsWith('/photos') ||
+    url.startsWith('/core/') ||
+    url.startsWith('/login') ||
+    url.startsWith('/signup') ||
+    url.startsWith('/logout') ||
+    url.startsWith('/account') ||
+    url.startsWith('/cards') ||
+    url.startsWith('/cabinets') ||
+    url.startsWith('/users') ||
+    url.startsWith('/about') ||
+    url.startsWith('/data') ||
+    url.startsWith('/plugin/') ||
+    url.startsWith('/static/') ||
+    url === '/' ||
+    url === '/health' ||
+    url === '/status'
+  ) {
     (req as any).skip = true;
     return next();
   }
@@ -151,6 +180,7 @@ export const EamuseMiddleware: RequestHandler = async (req, res, next) => {
     const eaMethods: string[] = moduleObj.map(x => get(x, `@attr.method`));
     const eaMethod = eaMethods.join('.');
     const model = get(xml, 'call.@attr.model');
+    const pcbid = get(xml, 'call.@attr.srcid') || get(xml, 'call.@attr.pcbid');
 
     if (!(process as any).pkg) {
       Logger.debug(`${eaModule}.${eaMethod}\n${dataToXML(xml, false)}`);
@@ -166,12 +196,22 @@ export const EamuseMiddleware: RequestHandler = async (req, res, next) => {
       encoding,
       kencoded,
       model,
+      pcbid,
     } as EABody;
     next();
   });
 };
 
+function gameIp(ip: string | undefined): string | undefined {
+  if (!ip || !ip.includes(':')) return ip;
+  const mapped = ip.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  return mapped ? mapped[1] : '127.0.0.1';
+}
+
 export const EamuseRoute = (router: EamuseRootRouter): RequestHandler => {
+  const lastSeenWriteAt = new Map<string, number>();
+  const CABINET_LAST_SEEN_INTERVAL_MS = 60 * 1000;
+
   const route: RequestHandler = async (req, res, next) => {
     if ((req as any).skip) {
       next();
@@ -182,27 +222,57 @@ export const EamuseRoute = (router: EamuseRootRouter): RequestHandler => {
 
     const gameCode = body.model.split(':')[0];
 
+    if (CONFIG.online_mode && CONFIG.require_pcbid_auth && !body.pcbid) {
+      Logger.warn(
+        `Rejected connection without PCBID (Game: ${gameCode}, ${body.module}.${body.method})`
+      );
+      res.sendStatus(403);
+      return;
+    }
+
+    if (body.pcbid) {
+      const cabinet = await GetCabinetByPCBID(body.pcbid);
+      if (CONFIG.online_mode && CONFIG.require_pcbid_auth && !cabinet) {
+        Logger.warn(
+          `Rejected connection from unregistered PCBID: ${body.pcbid} (Game: ${gameCode})`
+        );
+        res.sendStatus(403);
+        return;
+      }
+      if (cabinet) {
+        const now = Date.now();
+        const lastWrite = lastSeenWriteAt.get(cabinet.pcbid) || 0;
+        if (now - lastWrite >= CABINET_LAST_SEEN_INTERVAL_MS) {
+          lastSeenWriteAt.set(cabinet.pcbid, now);
+          UpdateCabinetLastSeen(cabinet.pcbid);
+        }
+      }
+    }
+
     const send = new EamuseSend(body, res);
     const data = get(body.data, `call.${body.module}`);
-    const info = { gameCode, module: body.module, method: body.method, model: body.model };
+    const forwardedFor = forwardedHeader(req, 'x-forwarded-for');
+    const clientIp = forwardedFor || req.ip;
+    const cleanIp = gameIp(clientIp);
+
+    const forwardedHost = forwardedHeader(req, 'x-forwarded-host');
+    const forwardedProto = forwardedHeader(req, 'x-forwarded-proto');
+
+    const info: EamuseInfo = {
+      gameCode,
+      module: body.module,
+      method: body.method,
+      model: body.model,
+      pcbid: body.pcbid,
+      ip: cleanIp,
+      host: forwardedHost ? stripPort(forwardedHost) : req.hostname,
+      protocol: forwardedProto || req.protocol,
+      proxy: Boolean(forwardedHost || forwardedProto),
+    };
 
     // HACK: give facility ip
     if (body.module == 'facility' && body.method == 'get') {
-      const forwardedFor = forwardedHeader(req, 'x-forwarded-for');
-      const clientIp = forwardedFor || req.ip;
-      (info as any).ip = clientIp.includes(':') ? '127.0.0.1' : clientIp;
-    }
-
-    // HACK: give services host
-    if (body.module == 'services' && body.method == 'get') {
-      const forwardedHost = forwardedHeader(req, 'x-forwarded-host');
-      const forwardedProto = forwardedHeader(req, 'x-forwarded-proto');
-
-      (info as any).host = forwardedHost
-        ? stripPort(forwardedHost)
-        : req.hostname;
-      (info as any).protocol = forwardedProto || req.protocol;
-      (info as any).proxy = Boolean(forwardedHost || forwardedProto);
+      info.ip = cleanIp;
     }
 
     try {

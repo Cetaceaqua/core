@@ -1,0 +1,52 @@
+extends _layout.pug
+
+block content
+  section.section.is-main-section
+    .columns
+      .column.is-8.is-offset-2
+        .card
+          header.card-header
+            p.card-header-title
+              span.icon
+                i.mdi.mdi-credit-card
+              | Cards
+          .card-content
+            form(method='post' action='/cards')
+              .field.is-horizontal.is-narrow
+                .field-label.is-normal
+                  label.label Add Card
+                .field-body
+                  .field.has-addons
+                    .control.is-expanded
+                      input.input#card-input(type='text' placeholder='16-character Card Number' name='card' maxlength='16' required)
+                    .control
+                      button.button.is-primary#add-card(type='submit')
+                        span.icon.is-small
+                          i.mdi.mdi-plus
+                        span Add
+            if formMessage
+              if formMessage.danger
+                .notification.is-danger.is-light.mt-4 #{formMessage.message}
+              else
+                .notification.is-success.is-light.mt-4 #{formMessage.message}
+            hr
+            if profileCards && profileCards.length > 0
+              .cards-container(style="display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center;")
+                each card in profileCards
+                  .ecard.box.is-paddingless(geopattern=card.cid style="position: relative; margin: 0;")
+                    .ecard-brand Asphyxia CORE
+                    .ecard-print
+                      .desc Card Number
+                      .print #{card.print ? card.print.replace(/[^a-z0-9]+/gi, '').replace(/(.{4})/g, '$1 ') : card.cid}
+                    .ecard-number
+                      .desc NFC
+                      .print #{card.cid}
+                    .ecard-logo
+                    if card.cid !== primaryCard
+                      form(method="post" action="/cards/delete" onsubmit="return confirm('Are you sure you want to unbind this card?');" style="display:inline;")
+                        input(type="hidden" name="cid" value=card.cid)
+                        button.button.is-danger.ecard-delete(type="submit" data-tooltip="Unbind this card")
+                          span.icon
+                            i.mdi.mdi-trash-can.mdi-24px
+            else
+              p.has-text-grey No cards linked to this profile.

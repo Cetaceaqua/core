@@ -1,0 +1,105 @@
+extends _layout.pug
+
+block content
+  section.section.is-main-section
+    .columns
+      .column.is-8.is-offset-2
+        .card
+          header.card-header
+            p.card-header-title
+              span.icon
+                i.mdi.mdi-account-cog
+              | Account Settings
+          .card-content
+            form(method="post" action="/account")
+              .field.is-horizontal
+                .field-label.is-normal
+                  label.label Username
+                .field-body
+                  .field
+                    .control.has-icons-left
+                      input.input(type="text" name="username" placeholder="Username" value=user)
+                      span.icon.is-small.is-left
+                        i.mdi.mdi-account
+              .field.is-horizontal
+                .field-label.is-normal
+                  label.label Card Number
+                .field-body
+                  .field
+                    .control.has-icons-left
+                      input.input(type="text" name="cardNumber" placeholder="16-character Card Number (optional)" value=fullUser.cardNumber)
+                      span.icon.is-small.is-left
+                        i.mdi.mdi-credit-card
+              .field.is-horizontal
+                .field-label.is-normal
+                  label.label New Password
+                .field-body
+                  .field
+                    .control.has-icons-left
+                      input.input(type="password" name="password" placeholder="Leave blank to keep current")
+                      span.icon.is-small.is-left
+                        i.mdi.mdi-lock
+              .field.is-horizontal
+                .field-label.is-normal
+                  label.label Confirm Password
+                .field-body
+                  .field
+                    .control.has-icons-left
+                      input.input(type="password" name="confirmPassword" placeholder="Confirm new password")
+                      span.icon.is-small.is-left
+                        i.mdi.mdi-lock-check
+              .field.is-grouped.is-grouped-right
+                .control.is-expanded
+                  if formMessage
+                    if formMessage.danger
+                      .notification.is-danger.is-light #{formMessage.message}
+                    else
+                      .notification.is-success.is-light #{formMessage.message}
+                .control
+                  button.button.is-link(type="submit")
+                    span.icon.is-small
+                      i.mdi.mdi-content-save
+                    span Save
+
+        if profile
+          .card.mt-5
+            header.card-header
+              p.card-header-title
+                span.icon
+                  i.mdi.mdi-account-details
+                | Profile Details
+            .card-content
+              form(method="post" action="/account/profile")
+                .field.is-horizontal
+                  .field-label.is-normal
+                    label.label Display Name
+                  .field-body
+                    .field
+                      .control.has-icons-left
+                        input.input(type='text' placeholder=profile.name name='name' value=profile.name)
+                        span.icon.is-small.is-left
+                          i.mdi.mdi-account
+                .field.is-horizontal
+                  .field-label.is-normal
+                    label.label PIN
+                  .field-body
+                    .field
+                      .control.has-icons-left
+                        input.input(type='password' size='4' maxlength='4' placeholder='••••' name='pin')
+                        span.icon.is-small.is-left
+                          i.mdi.mdi-dialpad
+                .field.is-horizontal
+                  .field-label.is-normal
+                    label.label Balance
+                  .field-body
+                    .field
+                      .control.has-icons-left
+                        input.input(type='number' min='0' max='100000' placeholder=(profile.paseli != null ? profile.paseli : '10000') name='paseli' value=profile.paseli)
+                        span.icon.is-small.is-left
+                          i.mdi.mdi-currency-usd
+                .field.is-grouped.is-grouped-right
+                  .control
+                    button.button.is-link(type='submit')
+                      span.icon.is-small
+                        i.mdi.mdi-pencil
+                      span Update Profile

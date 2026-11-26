@@ -10,7 +10,8 @@ import chalk from 'chalk';
 import { LoadExternalPlugins } from './eamuse/ExternalPluginLoader';
 import { webui } from './webui/index';
 import path from 'path';
-import { ASSETS_PATH, LoadCoreDB } from './utils/EamuseIO';
+import { ASSETS_PATH, LoadCoreDB, SAVE_PATH, SeedDefaultAdmin } from './utils/EamuseIO';
+import { uploaderRouter } from './uploader';
 import open from 'open';
 import { Migrate } from './utils/migration';
 
@@ -49,6 +50,7 @@ function Main() {
 
   const EAMUSE = express();
 
+  EAMUSE.set('trust proxy', 1);
   EAMUSE.disable('etag');
   EAMUSE.disable('x-powered-by');
 
@@ -70,6 +72,8 @@ function Main() {
   // ========== EAMUSE ============
   EAMUSE.set('views', path.join(ASSETS_PATH, 'views'));
   EAMUSE.set('view engine', 'pug');
+  EAMUSE.use('/photos', express.static(path.join(SAVE_PATH, 'photos')));
+  EAMUSE.use(uploaderRouter);
   EAMUSE.use('*', services(CONFIG.port, external));
   EAMUSE.use('/static', express.static(path.join(ASSETS_PATH, 'static')));
   EAMUSE.use(webui);
@@ -98,7 +102,7 @@ function Main() {
     Logger.info(`   +==============================================+`);
     Logger.info('');
 
-    if (CONFIG.webui_on_startup) {
+    if (CONFIG.webui_on_startup && !process.env.NO_BROWSER && !ARGS.dev) {
       try {
         open(`http://${openAddr}:${CONFIG.port}`);
       } catch {}
@@ -119,6 +123,11 @@ function Main() {
   });
 }
 
-Migrate().then(() => {
-  LoadCoreDB().then(Main);
+Migrate().then(async () => {
+  ReadConfig();
+  await LoadCoreDB();
+  if (CONFIG.online_mode) {
+    await SeedDefaultAdmin();
+  }
+  Main();
 });

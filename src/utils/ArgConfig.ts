@@ -62,6 +62,13 @@ parser.addArgument(['-d', '--savedata-dir'], {
   dest: 'savedata',
 });
 
+parser.addArgument(['--online'], {
+  help: 'Enable online deployment mode with user authentication and cabinets',
+  defaultValue: undefined,
+  dest: 'online_mode',
+  action: 'storeTrue',
+});
+
 export const ARGS = parser.parseArgs();
 
 export interface CONFIG_OPTIONS {
@@ -137,6 +144,35 @@ function CoreConfig() {
       desc: 'Open WebUI when you launch Asphyxia CORE',
     });
   }
+
+  CONFIG_MAP['core'].set('online_mode', {
+    name: 'Online Mode',
+    type: 'boolean',
+    default: false,
+    needRestart: true,
+    desc: 'Enable multi-user authentication, accounts, and cabinet management for online deployment',
+  });
+
+  CONFIG_MAP['core'].set('server_name', {
+    name: 'Server Name',
+    type: 'string',
+    default: 'Asphyxia Core',
+    desc: 'Display name shown in the console and WebUI',
+  });
+
+  CONFIG_MAP['core'].set('server_tag', {
+    name: 'Server Tag',
+    type: 'string',
+    default: 'CORE',
+    desc: 'Short name sent to game clients',
+  });
+
+  CONFIG_MAP['core'].set('require_pcbid_auth', {
+    name: 'Require PCBID Auth',
+    type: 'boolean',
+    default: false,
+    desc: 'Reject e-amusement connections from unknown/unregistered PCBIDs (Cabinets)',
+  });
 }
 CoreConfig();
 
@@ -250,9 +286,10 @@ export const CONFIG: any = new Proxy(
   {},
   {
     get: (_, prop) => {
-      return ARGS[prop] || INI[prop];
+      return ARGS[prop] || (INI ? INI[prop] : undefined);
     },
     set: (_, prop, value) => {
+      if (!INI) INI = {};
       INI[prop] = value;
       return true;
     },
