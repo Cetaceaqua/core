@@ -48,6 +48,7 @@ import { isPlainObject } from 'lodash';
 import { VERSION } from '../utils/Consts';
 import { card2nfc, nfc2card } from '../utils/CardCipher';
 import { PluginRegisterModules } from '.';
+import { webuiContextStorage } from '../webui/shared/middleware';
 
 /** Caller Detection */
 export function GetCallerPlugin(): string {
@@ -192,6 +193,16 @@ export function LoadExternalPlugins() {
     },
     DecodeString: (buffer: Buffer, encoding: KBinEncoding) => {
       return iconv.decode(buffer, encoding);
+    },
+    IsOnlineMode: () => Boolean(CONFIG.online_mode),
+    IsWebUIAdmin: (sessionOrReq?: any) => {
+      if (!CONFIG.online_mode) return true;
+      if (sessionOrReq) {
+        const u = sessionOrReq.session?.user ?? sessionOrReq.user ?? sessionOrReq;
+        return Boolean(u?.admin);
+      }
+      const ctx = webuiContextStorage.getStore();
+      return ctx ? Boolean(ctx.isAdmin) : false;
     },
   };
 

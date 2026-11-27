@@ -26,6 +26,11 @@ export const ADMIN_ONLY_PAGES = [
   'more plugin settings',
 ];
 
+export function isAdminOnlyPage(pageName: string): boolean {
+  const normalized = pageName.toLowerCase().trim();
+  return normalized === 'admin' || ADMIN_ONLY_PAGES.some(p => p.toLowerCase() === normalized);
+}
+
 export async function userOwnsProfile(req: Request, refid: string): Promise<boolean> {
   const sessionUser = (req.session as any)?.user;
   if (!sessionUser) return false;
@@ -97,10 +102,7 @@ export function data(req: Request, title: string, plugin: string, attr?: any) {
         hasUploads: uploadInfo.hasUploads,
         uploadLabel: uploadInfo.label,
         pages: p.Pages.filter(
-          (f: string) =>
-            !onlineMode ||
-            sessionUser?.admin ||
-            !ADMIN_ONLY_PAGES.some(a => a.toLowerCase() === f.toLowerCase())
+          (f: string) => !onlineMode || sessionUser?.admin || !isAdminOnlyPage(f)
         ).map((f: string) => ({ name: startCase(f), link: f })),
       };
     }),

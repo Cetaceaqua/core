@@ -290,6 +290,16 @@ declare interface WebUISend {
    * @param message String message
    */
   error: (code: number, message: string) => void;
+
+  /**
+   * Whether the caller is a WebUI administrator (always true in offline mode)
+   */
+  readonly isAdmin?: boolean;
+
+  /**
+   * Whether CORE is running in online deployment mode
+   */
+  readonly isOnlineMode?: boolean;
 }
 
 /**
@@ -1052,6 +1062,18 @@ declare namespace U {
    * @param encoding see [[KEncoding]]
    */
   function DecodeString(buffer: Buffer, encoding: KEncoding): string;
+
+  /**
+   * Check if CORE is running in online deployment mode with user authentication
+   */
+  function IsOnlineMode(): boolean;
+
+  /**
+   * Check if the current WebUI caller is an administrator (always true in offline mode)
+   *
+   * @param sessionOrReq Optional Express request or session object
+   */
+  function IsWebUIAdmin(sessionOrReq?: any): boolean;
 }
 
 /** @ignore */

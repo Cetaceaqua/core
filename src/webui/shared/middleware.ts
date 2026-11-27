@@ -1,6 +1,14 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import { RequestHandler } from 'express';
 import { CONFIG } from '../../utils/ArgConfig';
 import { FindUserByUsername } from '../../utils/EamuseIO';
+
+export interface WebUIRequestContext {
+  isAdmin: boolean;
+  user?: any;
+}
+
+export const webuiContextStorage = new AsyncLocalStorage<WebUIRequestContext>();
 
 export const wrap =
   (fn: RequestHandler) =>

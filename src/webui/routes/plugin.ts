@@ -20,7 +20,7 @@ import {
   ConfigData,
   DataFileCheck,
   userOwnsProfile,
-  ADMIN_ONLY_PAGES,
+  isAdminOnlyPage,
 } from '../shared/helpers';
 import { uploadRegistry } from '../../uploader/registry';
 import { Converter } from 'showdown';
@@ -145,7 +145,11 @@ pluginRouter.get(
       return res.redirect(`/plugin/${req.params['plugin']}/profile?refid=${refid}`);
     }
 
-    const content = await plugin.render(page, { query: req.query }, refid.toString());
+    const content = await plugin.render(
+      page,
+      { query: req.query, isOnlineMode: Boolean(CONFIG.online_mode), isAdmin },
+      refid.toString()
+    );
     if (content == null) return next();
 
     const tabs = plugin.ProfilePages.filter(p => !isOwnerOnlyPage(p) || isAdmin || isOwner).map(
@@ -292,8 +296,7 @@ pluginRouter.get(
     if (!plugin) return next();
 
     const isAdmin = !CONFIG.online_mode || !!(req.session as any)?.user?.admin;
-    const normalizedPage = pageName.toLowerCase().trim();
-    if (ADMIN_ONLY_PAGES.some(p => p.toLowerCase() === normalizedPage) && !isAdmin) {
+    if (isAdminOnlyPage(pageName) && !isAdmin) {
       return res.redirect('/');
     }
 
@@ -327,7 +330,11 @@ pluginRouter.get(
       return res.redirect('/account');
     }
 
-    const content = await plugin.render(pageName, { query: req.query });
+    const content = await plugin.render(pageName, {
+      query: req.query,
+      isOnlineMode: Boolean(CONFIG.online_mode),
+      isAdmin,
+    });
     if (content == null) return next();
 
     res.render(

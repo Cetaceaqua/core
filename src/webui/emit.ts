@@ -4,8 +4,9 @@ import { ROOT_CONTAINER } from '../eamuse/index';
 import { Logger } from '../utils/Logger';
 import multer from 'multer';
 import { WriteFile, DeleteFile, Resolve } from '../utils/EamuseIO';
-import { DATAFILE_MAP } from '../utils/ArgConfig';
+import { DATAFILE_MAP, CONFIG } from '../utils/ArgConfig';
 import { WebUISend } from '../eamuse/EamusePlugin';
+import { webuiContextStorage } from './shared/middleware';
 
 export const ajax = Router();
 
@@ -33,9 +34,15 @@ ajax.post(
 
     const event = req.params.event;
 
+    const isOnlineMode = Boolean(CONFIG.online_mode);
+    const sessionUser = (req.session as any)?.user;
+    const isAdmin = !isOnlineMode || Boolean(sessionUser?.admin);
+
     let sent = false;
 
     const send: WebUISend = {
+      isAdmin,
+      isOnlineMode,
       json: (data: any) => {
         res.json(data);
         sent = true;
@@ -66,7 +73,9 @@ ajax.post(
     };
 
     try {
-      await plugin.CallEvent(event, req.body, send);
+      await webuiContextStorage.run({ isAdmin, user: sessionUser || null }, () =>
+        plugin.CallEvent(event, req.body, send)
+      );
       if (!sent) {
         res.redirect(req.headers.referer);
         return;

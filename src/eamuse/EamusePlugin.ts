@@ -85,6 +85,8 @@ async function sanitization(gameCode: string, data: any, refMap: any = {}) {
 }
 
 export type WebUISend = {
+  readonly isAdmin?: boolean;
+  readonly isOnlineMode?: boolean;
   json: (data: any) => void;
   text: (data: string) => void;
   file: (path: string) => void;
@@ -170,6 +172,8 @@ export class EamusePlugin {
     };
     const U = {
       GetConfig: nothingFunc,
+      IsOnlineMode: nothingFunc,
+      IsWebUIAdmin: nothingFunc,
     };
 
     if (isProfile) {
@@ -276,11 +280,15 @@ export class EamusePlugin {
         return APIFind({ identifier: this.pluginIdentifier, core: false }, arg1, arg2);
       },
     };
+    const isOnlineMode = Boolean(CONFIG.online_mode);
+    const isAdmin = Boolean(data?.isAdmin ?? !isOnlineMode);
     const U = {
       GetConfig: (key: string) => {
         if (!CONFIG[this.pluginIdentifier]) return undefined;
         return CONFIG[this.pluginIdentifier][key];
       },
+      IsOnlineMode: () => isOnlineMode,
+      IsWebUIAdmin: () => isAdmin,
     };
 
     const IO = {},
@@ -288,7 +296,7 @@ export class EamusePlugin {
       R = {},
       K = {};
 
-    const local: any = { refid };
+    const local: any = { refid, isOnlineMode, isAdmin };
     for (const prop in cache.props) {
       local[prop] = await eval(cache.props[prop]);
     }
