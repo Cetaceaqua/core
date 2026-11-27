@@ -78,6 +78,12 @@ function migrateFile(srcPath) {
     live.set(doc._id, doc);
   }
 
+  if (live.size === 0 && dropped > 0) {
+    throw new Error(
+      `Aborted migration of ${path.basename(srcPath)}: all ${dropped} non-empty line(s) failed to parse`
+    );
+  }
+
   const tmp = srcPath + '.sqlite.tmp';
   if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
   const db = new DatabaseSync(tmp);

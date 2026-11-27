@@ -43,6 +43,10 @@ authRouter.post(
 
     await UpdateUserAccount(user.username, { lastLogin: Date.now() });
 
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate(err => (err ? reject(err) : resolve()));
+    });
+
     (req.session as any).user = {
       username: user.username,
       cardNumber: user.cardNumber,
@@ -140,6 +144,10 @@ authRouter.post(
     if (card.__refid) {
       await UpdateProfile(card.__refid, { name: username });
     }
+
+    await new Promise<void>((resolve, reject) => {
+      req.session.regenerate(err => (err ? reject(err) : resolve()));
+    });
 
     (req.session as any).user = { username, cardNumber: normalized, admin: false };
     res.redirect('/account');

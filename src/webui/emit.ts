@@ -6,7 +6,7 @@ import multer from 'multer';
 import { WriteFile, DeleteFile, Resolve } from '../utils/EamuseIO';
 import { DATAFILE_MAP, CONFIG } from '../utils/ArgConfig';
 import { WebUISend } from '../eamuse/EamusePlugin';
-import { webuiContextStorage } from './shared/middleware';
+import { webuiContextStorage, adminMiddleware } from './shared/middleware';
 
 export const ajax = Router();
 
@@ -92,7 +92,7 @@ ajax.post(
 var storage = multer.memoryStorage();
 var upload = multer({ storage: storage });
 // File upload
-ajax.post('/upload/:path', upload.single('upload'), async (req, res) => {
+ajax.post('/upload/:path', adminMiddleware, upload.single('upload'), async (req, res) => {
   if (!req.headers.referer) {
     res.sendStatus(400);
     return;
@@ -122,7 +122,7 @@ ajax.post('/upload/:path', upload.single('upload'), async (req, res) => {
   }
 });
 
-ajax.delete('/upload/:path', upload.single('upload'), async (req, res) => {
+ajax.delete('/upload/:path', adminMiddleware, upload.single('upload'), async (req, res) => {
   if (!req.headers.referer) {
     res.sendStatus(400);
     return;

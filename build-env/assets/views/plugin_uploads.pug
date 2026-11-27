@@ -50,7 +50,6 @@ block content
               data-refid=photo.refId
               data-game=photo.gameTitle
               data-model=photo.gameModel
-              data-type=photo.imageType
               data-filename=photo.fileName
               data-time=photo.uploadTime
               data-is-card=(photo.isCard ? "true" : "false")
@@ -202,7 +201,6 @@ block scripts
         orientation: cardEl.getAttribute('data-orientation') || 'portrait',
         title: cardEl.getAttribute('data-game') || '',
         model: cardEl.getAttribute('data-model') || '',
-        type: cardEl.getAttribute('data-type') || '',
         refid: cardEl.getAttribute('data-refid') || '',
         time: cardEl.getAttribute('data-time') || '',
         filename: cardEl.getAttribute('data-filename') || '',

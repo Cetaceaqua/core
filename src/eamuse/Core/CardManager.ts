@@ -15,6 +15,7 @@ import {
   FindUserByUsername,
   UpdateUserAccount,
 } from '../../utils/EamuseIO';
+import { invalidateUserCache } from '../../webui/shared/middleware';
 
 export const cardmng = new EamuseRouteContainer();
 
@@ -117,6 +118,7 @@ cardmng.add('cardmng.getrefid', async (info, data, send) => {
       const user = await FindUserByUsername(cabinet.username);
       if (user && (!user.cardNumber || user.cardNumber === '')) {
         await UpdateUserAccount(user.username, { cardNumber: cid });
+        invalidateUserCache(user.username);
       }
     }
   }

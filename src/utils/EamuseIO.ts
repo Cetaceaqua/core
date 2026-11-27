@@ -80,11 +80,7 @@ const LoadDatabase = async (file: string) => {
   await DB.ensureIndexAsync({ fieldName: '__refid' });
 
   try {
-    const docs = await DB.findAsync({ __s: 'plugins_profile' }).execAsync();
-    const toRemove = docs.filter((d: any) => d.__refid === undefined);
-    for (const d of toRemove) {
-      await DB.removeAsync({ _id: d._id }, {});
-    }
+    await DB.removeAsync({ __s: 'plugins_profile', __refid: { $exists: false } }, { multi: true });
   } catch (err) {
     Logger.error(err);
   }
@@ -826,7 +822,8 @@ export async function SeedDefaultAdmin() {
     const existing = await CoreDB.findOneAsync<any>({ __s: 'user_account', admin: true });
     if (existing) return;
 
-    const hash = await bcrypt.hash('admin', 10);
+    const initialPassword = process.env.CORE_ADMIN_PASSWORD || randomBytes(8).toString('hex');
+    const hash = await bcrypt.hash(initialPassword, 10);
     await CoreDB.insertAsync({
       __s: 'user_account',
       username: 'admin',
@@ -836,7 +833,7 @@ export async function SeedDefaultAdmin() {
       createdAt: Date.now(),
       lastLogin: Date.now(),
     });
-    Logger.info('Default admin account created (username: admin, password: admin)');
+    Logger.info(`Default admin account created (username: admin, password: ${initialPassword})`);
   } catch (err) {
     Logger.error(err);
   }

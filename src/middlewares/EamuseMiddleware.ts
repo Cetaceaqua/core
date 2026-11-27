@@ -78,7 +78,6 @@ export const EamuseMiddleware: RequestHandler = async (req, res, next) => {
     url.startsWith('/api/') ||
     url.startsWith('/upload') ||
     url.startsWith('/photos') ||
-    url.startsWith('/core/') ||
     url.startsWith('/login') ||
     url.startsWith('/signup') ||
     url.startsWith('/logout') ||
@@ -90,9 +89,11 @@ export const EamuseMiddleware: RequestHandler = async (req, res, next) => {
     url.startsWith('/data') ||
     url.startsWith('/plugin/') ||
     url.startsWith('/static/') ||
-    url === '/' ||
-    url === '/health' ||
-    url === '/status'
+    (url === '/' &&
+      (req.method === 'GET' ||
+        req.method === 'HEAD' ||
+        agent.indexOf('Mozilla') >= 0 ||
+        Boolean(req.headers.accept && String(req.headers.accept).includes('text/html'))))
   ) {
     (req as any).skip = true;
     return next();

@@ -6,7 +6,7 @@ import flash from 'connect-flash';
 import { urlencoded } from 'body-parser';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 
 import { SAVE_PATH } from '../utils/EamuseIO';
@@ -34,6 +34,7 @@ function getSessionSecret(): string {
   } catch {}
   const secret = crypto.randomBytes(32).toString('hex');
   try {
+    mkdirSync(SAVE_PATH, { recursive: true });
     writeFileSync(secretPath, secret, 'utf8');
   } catch {}
   return secret;
@@ -41,7 +42,7 @@ function getSessionSecret(): string {
 
 webui.use(
   session({
-    cookie: { maxAge: 86400000, sameSite: 'lax', httpOnly: true },
+    cookie: { maxAge: 86400000, sameSite: 'lax', httpOnly: true, secure: 'auto' },
     proxy: true,
     secret: process.env.SESSION_SECRET || getSessionSecret(),
     resave: false,
@@ -65,8 +66,13 @@ const generalLimit = rateLimit({
 });
 webui.use(generalLimit);
 
-const onlineOnly = (handler: any) => (req: any, res: any, next: any) =>
-  CONFIG.online_mode ? handler(req, res, next) : next();
+let onlineModeAtBoot: boolean | null = null;
+const onlineOnly = (handler: any) => (req: any, res: any, next: any) => {
+  if (onlineModeAtBoot === null) {
+    onlineModeAtBoot = Boolean(CONFIG.online_mode);
+  }
+  return onlineModeAtBoot ? handler(req, res, next) : next();
+};
 
 // Public Auth Routes
 webui.use(onlineOnly(authRouter));

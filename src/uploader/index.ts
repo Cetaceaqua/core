@@ -4,7 +4,38 @@ import { extractTar } from '../utils/tar';
 import { uploadRegistry } from './registry';
 import { UploadContext, UploadFile } from './types';
 import { ensureDirectoryExists } from './utils';
-import { SAVE_PATH } from '../utils/EamuseIO';
+import { SAVE_PATH, FindCard } from '../utils/EamuseIO';
+import { CONFIG } from '../utils/ArgConfig';
+
+const ALLOWED_UPLOAD_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.xml', '.json', '.dat']);
+
+function isDirectLoopback(req: Request): boolean {
+  if (req.headers['x-forwarded-for']) return false;
+  const ip = req.socket?.remoteAddress || req.ip || '';
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
+async function authorizePhotoMutation(
+  req: Request,
+  res: Response,
+  refid: string
+): Promise<boolean> {
+  if (!CONFIG.online_mode || isDirectLoopback(req)) return true;
+
+  const sessionUser = (req as any).session?.user;
+  if (!sessionUser) {
+    res.status(401).json({ success: false, message: 'Unauthorized' });
+    return false;
+  }
+  if (sessionUser.admin) return true;
+
+  const card = sessionUser.cardNumber ? await FindCard(sessionUser.cardNumber) : null;
+  if (!card || card.__refid !== refid) {
+    res.status(403).json({ success: false, message: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
 
 export const uploaderRouter = Router();
 
@@ -163,7 +194,15 @@ uploaderRouter.post(
       }
     }
 
-    const handler = uploadRegistry.getHandlerForGame(gameModel, uploadFiles);
+    const filteredFiles = uploadFiles.filter(f => {
+      const ext = path.extname(f.filename || '').toLowerCase();
+      return ALLOWED_UPLOAD_EXTENSIONS.has(ext);
+    });
+    if (filteredFiles.length === 0) {
+      return res.status(400).send('Invalid file type');
+    }
+
+    const handler = uploadRegistry.getHandlerForGame(gameModel, filteredFiles);
     const ctx: UploadContext = {
       baseDir: photosDir,
       refId,
@@ -173,7 +212,7 @@ uploaderRouter.post(
     };
 
     try {
-      await handler.saveUpload(ctx, uploadFiles);
+      await handler.saveUpload(ctx, filteredFiles);
       res.writeHead(200, {
         'Content-Type': 'text/plain',
         'Content-Length': '2',
@@ -189,24 +228,34 @@ uploaderRouter.post(
 uploaderRouter.get('/api/photos', async (req: Request, res: Response) => {
   const photosDir = getPhotosDir();
   const { refid, game } = req.query;
+  let effectiveRefid = typeof refid === 'string' ? refid : undefined;
+
+  if (CONFIG.online_mode && !isDirectLoopback(req)) {
+    const sessionUser = (req as any).session?.user;
+    if (!sessionUser) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    if (!sessionUser.admin) {
+      const card = sessionUser.cardNumber ? await FindCard(sessionUser.cardNumber) : null;
+      if (!card || !card.__refid) {
+        return res.json({ success: true, count: 0, photos: [] });
+      }
+      if (effectiveRefid && effectiveRefid !== card.__refid) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+      effectiveRefid = card.__refid;
+    }
+  }
 
   try {
     let items = [];
     if (typeof game === 'string' && game.trim()) {
       const handler = uploadRegistry.getHandlerForGame(game);
-      items = await handler.listItems(
-        photosDir,
-        [game],
-        typeof refid === 'string' ? refid : undefined
-      );
+      items = await handler.listItems(photosDir, [game], effectiveRefid);
     } else {
       const allHandlers = uploadRegistry.getAllHandlers();
       for (const h of allHandlers) {
-        const subItems = await h.listItems(
-          photosDir,
-          [],
-          typeof refid === 'string' ? refid : undefined
-        );
+        const subItems = await h.listItems(photosDir, [], effectiveRefid);
         items.push(...subItems);
       }
       items.sort((a, b) => b.timestamp - a.timestamp);
@@ -224,6 +273,7 @@ uploaderRouter.get('/api/photos', async (req: Request, res: Response) => {
 
 uploaderRouter.delete('/api/photos/:refid/:filename', async (req: Request, res: Response) => {
   const { refid, filename } = req.params;
+  if (!(await authorizePhotoMutation(req, res, refid))) return;
   const photosDir = getPhotosDir();
 
   for (const handler of uploadRegistry.getAllHandlers()) {
@@ -238,6 +288,7 @@ uploaderRouter.delete('/api/photos/:refid/:filename', async (req: Request, res: 
 
 uploaderRouter.delete('/api/photos/subdir/:refid/:subdir', async (req: Request, res: Response) => {
   const { refid, subdir } = req.params;
+  if (!(await authorizePhotoMutation(req, res, refid))) return;
   const photosDir = getPhotosDir();
 
   const handler = uploadRegistry.get('card_connect');
@@ -255,6 +306,7 @@ uploaderRouter.post(
   '/api/photos/subdir/:refid/:subdir/print',
   async (req: Request, res: Response) => {
     const { refid, subdir } = req.params;
+    if (!(await authorizePhotoMutation(req, res, refid))) return;
     const photosDir = getPhotosDir();
 
     const handler = uploadRegistry.get('card_connect');

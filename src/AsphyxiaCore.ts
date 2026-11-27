@@ -72,7 +72,18 @@ function Main() {
   // ========== EAMUSE ============
   EAMUSE.set('views', path.join(ASSETS_PATH, 'views'));
   EAMUSE.set('view engine', 'pug');
-  EAMUSE.use('/photos', express.static(path.join(SAVE_PATH, 'photos')));
+  EAMUSE.use(
+    '/photos',
+    express.static(path.join(SAVE_PATH, 'photos'), {
+      dotfiles: 'ignore',
+      setHeaders: (res, filePath) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        if (!/\.(png|jpe?g)$/i.test(filePath)) {
+          res.setHeader('Content-Disposition', 'attachment');
+        }
+      },
+    })
+  );
   EAMUSE.use(uploaderRouter);
   EAMUSE.use('*', services(CONFIG.port, external));
   EAMUSE.use('/static', express.static(path.join(ASSETS_PATH, 'static')));

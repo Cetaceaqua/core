@@ -153,20 +153,6 @@ function CoreConfig() {
     desc: 'Enable multi-user authentication, accounts, and cabinet management for online deployment',
   });
 
-  CONFIG_MAP['core'].set('server_name', {
-    name: 'Server Name',
-    type: 'string',
-    default: 'Asphyxia Core',
-    desc: 'Display name shown in the console and WebUI',
-  });
-
-  CONFIG_MAP['core'].set('server_tag', {
-    name: 'Server Tag',
-    type: 'string',
-    default: 'CORE',
-    desc: 'Short name sent to game clients',
-  });
-
   CONFIG_MAP['core'].set('require_pcbid_auth', {
     name: 'Require PCBID Auth',
     type: 'boolean',

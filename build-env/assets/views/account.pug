@@ -88,15 +88,16 @@ block content
                         input.input(type='password' size='4' maxlength='4' placeholder='••••' name='pin')
                         span.icon.is-small.is-left
                           i.mdi.mdi-dialpad
-                .field.is-horizontal
-                  .field-label.is-normal
-                    label.label Balance
-                  .field-body
-                    .field
-                      .control.has-icons-left
-                        input.input(type='number' min='0' max='100000' placeholder=(profile.paseli != null ? profile.paseli : '10000') name='paseli' value=profile.paseli)
-                        span.icon.is-small.is-left
-                          i.mdi.mdi-currency-usd
+                if admin
+                  .field.is-horizontal
+                    .field-label.is-normal
+                      label.label Balance
+                    .field-body
+                      .field
+                        .control.has-icons-left
+                          input.input(type='number' min='0' max='100000' placeholder=(profile.paseli != null ? profile.paseli : '10000') name='paseli' value=profile.paseli)
+                          span.icon.is-small.is-left
+                            i.mdi.mdi-currency-usd
                 .field.is-grouped.is-grouped-right
                   .control
                     button.button.is-link(type='submit')

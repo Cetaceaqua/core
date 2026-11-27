@@ -69,7 +69,7 @@
     $('body').append('<div class="is-overlay turnoff"></div>');
     audioElement.play();
     window.scrollTo(0, 0);
-    axios.get('/fun/shutdown');
+    axios.post('/fun/shutdown');
   });
 
   $('#open-plugins').on('click', () => {

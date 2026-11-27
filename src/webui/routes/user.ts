@@ -83,6 +83,31 @@ userRouter.post(
             req.flash('formWarn', 'This card number is already registered to another user.');
             return res.redirect('/account');
           }
+
+          const targetCard = await FindCard(normalized);
+          if (!targetCard || !targetCard.__refid) {
+            req.flash('formWarn', 'Card number not found. Please play a game first.');
+            return res.redirect('/account');
+          }
+
+          const currentCardNumber = (req.session as any).user.cardNumber;
+          if (currentCardNumber) {
+            const currentCard = await FindCard(currentCardNumber);
+            if (!currentCard || currentCard.__refid !== targetCard.__refid) {
+              req.flash('formWarn', 'You cannot link a card that belongs to another profile.');
+              return res.redirect('/account');
+            }
+          } else {
+            const siblingCards = await FindCardsByRefid(targetCard.__refid);
+            if (Array.isArray(siblingCards)) {
+              for (const sibling of siblingCards) {
+                if (await FindUserByCardNumber(sibling.cid)) {
+                  req.flash('formWarn', 'This profile is already registered to another user.');
+                  return res.redirect('/account');
+                }
+              }
+            }
+          }
         }
         updateFields.cardNumber = normalized;
       } else {
@@ -125,10 +150,14 @@ userRouter.post(
     const update: any = {};
     if (req.body.pin) update.pin = req.body.pin;
     if (req.body.name) update.name = req.body.name;
-    if (req.body.paseli !== undefined && req.body.paseli !== '') {
+    if (
+      (req.session as any).user.admin &&
+      req.body.paseli !== undefined &&
+      req.body.paseli !== ''
+    ) {
       const paseli = parseInt(String(req.body.paseli), 10);
       if (!isNaN(paseli)) {
-        update.paseli = Math.max(0, Math.min(1000000, paseli));
+        update.paseli = Math.max(0, Math.min(100000, paseli));
       }
     }
 

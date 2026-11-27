@@ -323,6 +323,18 @@ export class SqliteStore {
     addColumnIfMissing(
       `ALTER TABLE documents ADD COLUMN _version INTEGER GENERATED ALWAYS AS (CAST(json_extract(data, '$.version') AS INTEGER)) VIRTUAL`
     );
+    addColumnIfMissing(
+      `ALTER TABLE documents ADD COLUMN _cid TEXT GENERATED ALWAYS AS (json_extract(data, '$.cid')) VIRTUAL`
+    );
+    addColumnIfMissing(
+      `ALTER TABLE documents ADD COLUMN _pcbid TEXT GENERATED ALWAYS AS (json_extract(data, '$.pcbid')) VIRTUAL`
+    );
+    addColumnIfMissing(
+      `ALTER TABLE documents ADD COLUMN _username TEXT GENERATED ALWAYS AS (json_extract(data, '$.username')) VIRTUAL`
+    );
+    addColumnIfMissing(
+      `ALTER TABLE documents ADD COLUMN _cardNumber TEXT GENERATED ALWAYS AS (json_extract(data, '$.cardNumber')) VIRTUAL`
+    );
 
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_documents_collection       ON documents(_collection);
@@ -330,6 +342,10 @@ export class SqliteStore {
       CREATE INDEX IF NOT EXISTS idx_documents_s_collection     ON documents(__s, _collection);
       CREATE INDEX IF NOT EXISTS idx_documents_refid_collection ON documents(__refid, _collection);
       CREATE INDEX IF NOT EXISTS idx_documents_refid_coll_mid   ON documents(__refid, _collection, _mid);
+      CREATE INDEX IF NOT EXISTS idx_documents_s_cid            ON documents(__s, _cid);
+      CREATE INDEX IF NOT EXISTS idx_documents_s_pcbid          ON documents(__s, _pcbid);
+      CREATE INDEX IF NOT EXISTS idx_documents_s_username       ON documents(__s, _username);
+      CREATE INDEX IF NOT EXISTS idx_documents_s_cardNumber     ON documents(__s, _cardNumber);
     `);
   }
 
@@ -383,6 +399,26 @@ export class SqliteStore {
       if (typeof version === 'number') {
         wheres.push('_version = ?');
         params.push(version);
+      }
+      const cid = query.cid;
+      if (typeof cid === 'string') {
+        wheres.push('_cid = ?');
+        params.push(cid);
+      }
+      const pcbid = query.pcbid;
+      if (typeof pcbid === 'string') {
+        wheres.push('_pcbid = ?');
+        params.push(pcbid);
+      }
+      const username = query.username;
+      if (typeof username === 'string') {
+        wheres.push('_username = ?');
+        params.push(username);
+      }
+      const cardNumber = query.cardNumber;
+      if (typeof cardNumber === 'string') {
+        wheres.push('_cardNumber = ?');
+        params.push(cardNumber);
       }
     }
     return {
