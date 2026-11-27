@@ -34,9 +34,10 @@
   align-items: center;
   justify-content: center;
   position: relative;
+  z-index: 1;
   user-select: none;
   touch-action: none;
-  padding: 1.5rem 1rem;
+  padding: 1.5rem 1rem 2rem;
   width: 100%;
   cursor: grab;
 }
@@ -53,13 +54,13 @@
 
 .holo-card-wrapper.is-portrait {
   aspect-ratio: 662 / 1024;
-  height: min(65vh, 580px);
-  max-width: calc(65vh * 662 / 1024);
+  height: min(52vh, 460px);
+  max-width: calc(52vh * 662 / 1024);
 }
 
 .holo-card-wrapper.is-landscape {
   aspect-ratio: 1024 / 662;
-  width: min(85vw, 680px);
+  width: min(85vw, 560px);
   max-height: calc(85vw * 662 / 1024);
 }
 
@@ -72,9 +73,9 @@
   transition: var(--rot-transition, transform 0.12s ease-out);
   border-radius: 12px;
   box-shadow:
-    0 20px 42px rgba(0, 0, 0, 0.75),
-    0 6px 16px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.15);
+    0 14px 28px rgba(0, 0, 0, 0.26),
+    0 4px 10px rgba(0, 0, 0, 0.14),
+    0 0 0 1px rgba(0, 0, 0, 0.08);
   will-change: transform;
 }
 
@@ -221,31 +222,31 @@
 }
 
 .holo-controls-bar {
-  display: flex;
+  position: relative;
+  z-index: 10;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 0.75rem;
-  padding: 0.5rem 0.85rem;
-  background: rgba(22, 22, 28, 0.9);
-  backdrop-filter: blur(10px);
-  border: 1px solid #2e2e3e;
-  border-radius: 30px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid #dbdbdb;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(10, 10, 10, 0.06);
 }
 
-.holo-controls-bar .button {
-  border-radius: 20px;
-  font-weight: 500;
-  transition: all 0.2s ease;
+.holo-controls-bar .button,
+.holo-controls-bar .select {
+  margin: 0 !important;
+  vertical-align: middle;
 }
 
 .holo-controls-bar .button.is-active-toggle {
-  background-color: #00d1b2 !important;
-  color: #121216 !important;
-  border-color: #00d1b2 !important;
-  font-weight: 600;
+  background-color: #3298dc !important;
+  color: #ffffff !important;
+  border-color: #3298dc !important;
 }
 
 .holo-info-panel {
@@ -374,12 +375,11 @@
 }
 
 .card-footer-item.unprinted-badge {
-  color: #e0af68;
-  background-color: rgba(224, 175, 104, 0.08);
+  color: #946c00;
+  background-color: #fffbeb;
   font-weight: 600;
   cursor: default;
   user-select: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* Card Status Badge (Top-Left Corner - Icon Only) */

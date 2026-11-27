@@ -232,12 +232,18 @@
           this.rotator.style.setProperty("--holo-mask-url", maskVal);
           this.foilContainer.classList.remove("is-hidden");
           if (this.btnToggleHolo) this.btnToggleHolo.style.display = "";
-          if (this.patternSelect) this.patternSelect.closest(".control").style.display = "";
+          if (this.patternSelect) {
+            const wrap = this.patternSelect.closest(".select") || this.patternSelect.closest(".control");
+            if (wrap) wrap.style.display = "";
+          }
         } else {
           this.rotator.style.removeProperty("--holo-mask-url");
           this.foilContainer.classList.add("is-hidden");
           if (this.btnToggleHolo) this.btnToggleHolo.style.display = "none";
-          if (this.patternSelect) this.patternSelect.closest(".control").style.display = "none";
+          if (this.patternSelect) {
+            const wrap = this.patternSelect.closest(".select") || this.patternSelect.closest(".control");
+            if (wrap) wrap.style.display = "none";
+          }
         }
       }
 
@@ -338,14 +344,14 @@
 
         if (data.hasHolo) {
           const tagHolo = document.createElement("span");
-          tagHolo.className = "tag holo-tag";
+          tagHolo.className = "tag is-link is-light";
           tagHolo.innerHTML = '<span class="icon is-small"><i class="mdi mdi-creation"></i></span><span>Holo</span>';
           this.infoTags.appendChild(tagHolo);
         }
 
         if (meta.rarity) {
           const tagRarity = document.createElement("span");
-          tagRarity.className = "tag is-dark rarity-stars";
+          tagRarity.className = "tag is-warning is-light";
           tagRarity.textContent = "★".repeat(meta.rarity);
           this.infoTags.appendChild(tagRarity);
         }

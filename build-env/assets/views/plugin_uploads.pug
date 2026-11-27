@@ -46,6 +46,7 @@ block content
         each photo in photos
           .column.is-6-tablet.is-4-desktop.is-3-widescreen
             .card.photo-card-item(
+              style="position: relative;"
               data-refid=photo.refId
               data-game=photo.gameTitle
               data-model=photo.gameModel
@@ -64,39 +65,30 @@ block content
               data-orientation=(photo.orientation || "portrait")
               data-card-meta=(photo.card ? JSON.stringify(photo.card) : "")
             )
+              if photo.isCard
+                if photo.isPrinted
+                  span.tag.is-success(style="position: absolute; top: 8px; right: 8px; z-index: 3;") Printed
+                else
+                  span.tag.is-warning(style="position: absolute; top: 8px; right: 8px; z-index: 3;") Unprinted
               .card-image
                 figure.image.photo-thumb-container(
                   style="cursor: pointer; position: relative; overflow: hidden; " + (photo.isCard ? (photo.orientation === 'landscape' ? "aspect-ratio: 1024 / 662;" : "aspect-ratio: 662 / 1024;") : (photo.orientation === 'landscape' ? "aspect-ratio: 4 / 3;" : "aspect-ratio: 3 / 4;"))
                   onclick=`openViewerFromCard(this.closest('.photo-card-item'))`
                 )
-                  img(src=(photo.card ? (photo.card.previewUrl || photo.card.frontUrl || photo.url) : photo.url) alt=photo.fileName style="width: 100%; height: 100%; object-fit: contain; background: #1a1a1a;" loading="lazy")
-                  if photo.isCard
-                    if photo.isPrinted
-                      span.tag.is-success(style="position: absolute; top: 8px; right: 8px;") Printed
-                    else
-                      span.tag.is-warning(style="position: absolute; top: 8px; right: 8px;") Unprinted
+                  img(src=(photo.card ? (photo.card.previewUrl || photo.card.frontUrl || photo.url) : photo.url) alt=photo.fileName style="width: 100%; height: 100%; object-fit: contain; background: #f5f5f5;" loading="lazy")
               .card-content.p-3
-                .level.is-mobile.mb-1
-                  .level-left
-                    if photo.card && photo.card.shinkiName
-                      p.is-size-6.has-text-weight-bold.text-truncate(title=photo.card.shinkiName) #{photo.card.shinkiName}
-                    else if photo.card && photo.card.description
-                      p.is-size-6.has-text-weight-bold.text-truncate(title=photo.card.description) #{photo.card.description}
-                    else
-                      p.is-size-7.has-text-weight-semibold.has-text-grey.text-truncate(title=photo.fileName) #{photo.fileName}
-                  .level-right
-                    if photo.card && photo.card.hasHolo
-                      span.tag.is-info.is-light.is-small Holo
+                if photo.card && photo.card.shinkiName
+                  p.is-size-6.has-text-weight-bold.text-truncate.mb-1(title=photo.card.shinkiName) #{photo.card.shinkiName}
+                else if photo.card && photo.card.description
+                  p.is-size-6.has-text-weight-bold.text-truncate.mb-1(title=photo.card.description) #{photo.card.description}
+                else
+                  p.is-size-7.has-text-weight-semibold.has-text-grey.text-truncate.mb-1(title=photo.fileName) #{photo.fileName}
                 .level.is-mobile.is-size-7.has-text-grey
                   .level-left
                     span #{photo.refId}
                   .level-right
                     span #{new Date(photo.timestamp).toLocaleDateString()}
               footer.card-footer
-                a.card-footer-item.btn-preview(href="#" onclick=`openViewerFromCard(this.closest('.photo-card-item')); return false;`)
-                  span.icon.is-small
-                    i.mdi.mdi-eye
-                  span View
                 if photo.isCard
                   if photo.isPrinted
                     a.card-footer-item.has-text-danger(href="#" onclick=`deleteCardItem(this.closest('.photo-card-item')); return false;`)
@@ -104,8 +96,8 @@ block content
                         i.mdi.mdi-trash-can
                       span Delete
                   else
-                    span.card-footer-item.is-size-7.has-text-grey(title="Card is pending print. It can only be canceled or printed in Asphyxia WebUI.")
-                      span.icon.is-small.has-text-warning
+                    span.card-footer-item.is-size-7.unprinted-badge(title="Card is pending print. It can only be canceled or printed in Asphyxia WebUI.")
+                      span.icon.is-small
                         i.mdi.mdi-printer-alert
                       span Unprinted
                 else
@@ -121,81 +113,72 @@ block content
 block modal
   #lightboxModal.modal
     .modal-background(onclick="closeViewer()")
-    .modal-content.lightbox-content(style="max-width: 900px; width: 95%;")
-      #cardStageSection.holo-stage-container
-        .holo-stage-viewport
-          #holoCardWrapper.holo-card-wrapper.is-portrait
-            #holoCardRotator.holo-card-rotator
-              #holoFaceFront.holo-card-face.face-front
-                img#holoImgFront.holo-card-img(src="" alt="Front")
-                #holoFoilContainer.holo-foil-container
-                  #holoFoilBase.holo-foil-base
-                  #holoFoilRainbow.holo-foil-rainbow
-                  #holoFoilPattern.holo-foil-pattern
-                .holo-glare
-              #holoFaceBack.holo-card-face.face-back(style="display: none;")
-                img#holoImgBack.holo-card-img(src="" alt="Back")
-                .holo-glare
+    .modal-card(style="width: min(95vw, 760px);")
+      header.modal-card-head
+        p#holoCardTitle.modal-card-title.has-text-weight-semibold Card Preview
+        button.delete(aria-label="close" onclick="closeViewer()")
+      section.modal-card-body.has-background-light
+        #cardStageSection.holo-stage-container
+          .holo-stage-viewport
+            #holoCardWrapper.holo-card-wrapper.is-portrait
+              #holoCardRotator.holo-card-rotator
+                #holoFaceFront.holo-card-face.face-front
+                  img#holoImgFront.holo-card-img(src="" alt="Front")
+                  #holoFoilContainer.holo-foil-container
+                    #holoFoilBase.holo-foil-base
+                    #holoFoilRainbow.holo-foil-rainbow
+                    #holoFoilPattern.holo-foil-pattern
+                  .holo-glare
+                #holoFaceBack.holo-card-face.face-back(style="display: none;")
+                  img#holoImgBack.holo-card-img(src="" alt="Back")
+                  .holo-glare
 
-        .holo-controls-bar.mt-3.has-text-centered
-          .buttons.is-centered.are-small
-            button#btnHoloFlip.button.is-dark
-              span.icon
+          .holo-controls-bar
+            button#btnHoloFlip.button.is-small.is-light(type="button")
+              span.icon.is-small
                 i.mdi.mdi-rotate-3d-variant
               span Flip
-            button#btnHoloToggle.button.is-dark.is-active-toggle
-              span.icon
+            button#btnHoloToggle.button.is-small.is-light.is-active-toggle(type="button")
+              span.icon.is-small
                 i.mdi.mdi-creation
               span Holo
-            .control
-              .select.is-small
-                select#holoPatternSelect
-                  option(value="basic") Glitter
-                  option(value="starlight") Starlight
-                  option(value="prismatic") Prismatic
-                  option(value="dots") Dot Matrix
-            button#btnHoloAutoTilt.button.is-dark
-              span.icon
+            .select.is-small
+              select#holoPatternSelect
+                option(value="basic") Glitter
+                option(value="starlight") Starlight
+                option(value="prismatic") Prismatic
+                option(value="dots") Dot Matrix
+            button#btnHoloAutoTilt.button.is-small.is-light(type="button")
+              span.icon.is-small
                 i.mdi.mdi-play-circle-outline
               span Auto
-
-        .holo-info-panel.box.mt-3.p-4(style="background: rgba(30, 30, 30, 0.95);")
-          h3#holoCardTitle.title.is-5.has-text-white.mb-2
-          .level.is-mobile
-            .level-left
-              #holoCardTags.tags.mb-0
-            .level-right
-              .buttons.are-small.mb-0
-                a#dlCardFront.button.is-primary.is-small(href="" download="")
-                  span.icon
-                    i.mdi.mdi-download
-                  span Front
-                a#dlCardBack.button.is-info.is-small(href="" download="" style="display: none;")
-                  span.icon
-                    i.mdi.mdi-download
-                  span Back
-                a#dlCardHolo.button.is-warning.is-small(href="" download="" style="display: none;")
-                  span.icon
-                    i.mdi.mdi-download
-                  span Holo
-                a#dlCardIr.button.is-dark.is-small(href="" download="" style="display: none;")
-                  span.icon
-                    i.mdi.mdi-download
-                  span QR
-          p#holoCardDesc.subtitle.is-7.has-text-grey-light.mb-0
-
-    button#lightboxClose.modal-close.is-large(aria-label="close" onclick="closeViewer()")
+      footer.modal-card-foot(style="display: block;")
+        .level.is-mobile.mb-2
+          .level-left
+            #holoCardTags.tags.mb-0
+          .level-right
+            .buttons.are-small.mb-0
+              a#dlCardFront.button.is-primary.is-small.mb-0(href="" download="")
+                span.icon.is-small
+                  i.mdi.mdi-download
+                span Front
+              a#dlCardBack.button.is-info.is-small.mb-0(href="" download="" style="display: none;")
+                span.icon.is-small
+                  i.mdi.mdi-download
+                span Back
+              a#dlCardHolo.button.is-warning.is-small.mb-0(href="" download="" style="display: none;")
+                span.icon.is-small
+                  i.mdi.mdi-download
+                span Holo
+              a#dlCardIr.button.is-dark.is-small.mb-0(href="" download="" style="display: none;")
+                span.icon.is-small
+                  i.mdi.mdi-download
+                span QR
+        p#holoCardDesc.is-size-7.has-text-grey.mb-0
 
 block scripts
   script(type="text/javascript" src="/static/js/holo-stage.js")
   script.
-    var holoStage = null;
-    document.addEventListener('DOMContentLoaded', function() {
-      if (window.HoloCardStage) {
-        holoStage = new window.HoloCardStage();
-      }
-    });
-
     function openViewerFromCard(cardEl) {
       if (!cardEl) return;
       var isCard = cardEl.getAttribute('data-is-card') === 'true';
@@ -226,8 +209,8 @@ block scripts
         cardMeta: cardMeta,
       };
 
-      if (holoStage) {
-        holoStage.setCard(data);
+      if (window.holoStage) {
+        window.holoStage.setCard(data);
       }
       var modal = document.getElementById('lightboxModal');
       if (modal) modal.classList.add('is-active');
@@ -236,10 +219,10 @@ block scripts
     function closeViewer() {
       var modal = document.getElementById('lightboxModal');
       if (modal) modal.classList.remove('is-active');
-      if (holoStage) {
-        holoStage.stopAutoTilt();
-        holoStage.resetTilt();
-        holoStage.resetFlip();
+      if (window.holoStage) {
+        window.holoStage.stopAutoTilt();
+        window.holoStage.resetTilt();
+        window.holoStage.resetFlip();
       }
     }
 
@@ -263,7 +246,7 @@ block scripts
         if (raw) cardMeta = JSON.parse(raw);
       } catch (e) {}
 
-      if (!confirm('Are you sure you want to delete ' + filename + '?')) {
+      if (!confirm(isCard ? 'Are you sure you want to delete this card?' : 'Are you sure you want to delete ' + filename + '?')) {
         return;
       }
 
